@@ -2586,12 +2586,6 @@ function handleSummaryOutput(choice) {
 // ==============================================
 
 /**
- * แสดงข้อความเริ่มต้นในตารางสรุปรายวัน และเคลียร์ข้อความสรุปด้านบน
- */
-// [⚠️ ลบ] ฟังก์ชันนี้ถูกลบตามหมายเหตุ (ไม่ได้ใช้แล้ว)
-// function resetDailySummaryTable() { ... }
-
-/**
  * คำนวณสรุปข้อมูลแต่ละวันและเก็บไว้ใน dailySummaryData
  */
 function calculateDailySummaries() {
@@ -2639,18 +2633,6 @@ function calculateDailySummaries() {
     dailySummaryData = summaryByDate;
     console.log("คำนวณเสร็จสิ้น พบข้อมูลที่มีความเคลื่อนไหวจำนวน:", Object.keys(dailySummaryData).length, "วัน");
 }
-
-/**
- * แสดงสรุปแต่ละวันเป็นตาราง (ฟังก์ชันหลัก)
- */
-// [⚠️ ลบ] ฟังก์ชันนี้ถูกลบตามหมายเหตุ (ไม่ได้ใช้แล้ว)
-// function renderDailySummaryTable() { ... }
-
-/**
- * แสดงข้อความสรุปรายวัน (นอกตาราง)
- */
-// [⚠️ ลบ] ฟังก์ชันนี้ถูกลบตามหมายเหตุ (ไม่ได้ใช้แล้ว)
-// function renderDailySummaryHeader(...) { ... }
 
 /**
  * สลับโหมดการเลือกช่วงวันที่ (range หรือ lastX)
@@ -2760,12 +2742,6 @@ function showDailySummaryByRange() {
     
     openSummaryOutputModal();
 }
-
-/**
- * บันทึกสรุปแต่ละวันเป็นรูปภาพ
- */
-// [⚠️ ลบ] ฟังก์ชันนี้ถูกลบตามหมายเหตุ (ไม่ได้ใช้แล้ว)
-// function shareDailySummary() { ... }
 
 // ==============================================
 // ฟังก์ชันจัดการการส่งออกข้อมูล
@@ -4474,6 +4450,83 @@ async function handleChangePassword() {
 }
 
 // ==============================================
+// [🔧 เพิ่มใหม่] ฟังก์ชันสลับโหมดสำหรับการสรุปแบบกำหนดเอง
+// ==============================================
+// ฟังก์ชันสลับโหมดสำหรับการสรุปแบบกำหนดเอง
+function toggleGeneralSummaryMode() {
+    const mode = document.querySelector('input[name="summaryMode"]:checked').value;
+    const rangeContainer = document.getElementById('generalRangeContainer');
+    const lastXContainer = document.getElementById('generalLastXContainer');
+    const previewContainer = document.getElementById('generalLastXPreview');
+    
+    if (mode === 'lastX') {
+        if(rangeContainer) rangeContainer.style.display = 'none';
+        if(lastXContainer) lastXContainer.style.display = 'block';
+    } else {
+        if(rangeContainer) rangeContainer.style.display = 'block';
+        if(lastXContainer) lastXContainer.style.display = 'none';
+    }
+    
+    // เคลียร์ข้อความพรีวิวทุกครั้งที่สลับโหมด
+    if(previewContainer) previewContainer.innerHTML = '';
+}
+
+// ==============================================
+// [🔧 แก้ไข] ฟังก์ชันคำนวณช่วงวันที่สำหรับ X วันล่าสุด (โหมดสรุปวันที่ถึงวันที่)
+// ==============================================
+/**
+ * คำนวณช่วงวันที่สำหรับ X วันล่าสุด (โหมดสรุปวันที่ถึงวันที่)
+ */
+function calculateGeneralLastXRange() {
+    const daysInput = document.getElementById('summaryLastXDays').value;
+    const days = parseInt(daysInput);
+    
+    if (!days || days <= 0) {
+        showToast('⚠️ กรุณาระบุจำนวนวันที่ต้องการย้อนหลังให้ถูกต้อง', 'error');
+        return;
+    }
+    
+    // ✅ อัปเดต: ให้ใช้วันล่าสุดที่มีข้อมูล (เหมือนกับฝั่งสรุปรายวัน)
+    if (!dailySummaryData || Object.keys(dailySummaryData).length === 0) {
+        // บังคับให้คำนวณใหม่เผื่อยังไม่มีข้อมูล
+        calculateDailySummaries(); 
+        if (Object.keys(dailySummaryData).length === 0) {
+            showToast('⚠️ ไม่มีข้อมูลในบัญชีนี้สำหรับคำนวณ', 'error');
+            return;
+        }
+    }
+    
+    // ดึงวันล่าสุดที่มีข้อมูลจาก dailySummaryData
+    const dates = Object.keys(dailySummaryData).sort();
+    const endDateStr = dates[dates.length - 1]; // วันที่มากที่สุด (ล่าสุด)
+    
+    // ✅ แยกปี เดือน วัน เพื่อสร้าง Date Object ให้ตรงกับ Timezone ท้องถิ่นแบบ 100%
+    const [ey, em, ed] = endDateStr.split('-').map(Number);
+    const endObj = new Date(ey, em - 1, ed);
+    const startObj = new Date(ey, em - 1, ed);
+    startObj.setDate(endObj.getDate() - days + 1);
+    
+    // แปลงกลับเป็น YYYY-MM-DD
+    const sy = startObj.getFullYear();
+    const sm = String(startObj.getMonth() + 1).padStart(2, '0');
+    const sd = String(startObj.getDate()).padStart(2, '0');
+    const startStr = `${sy}-${sm}-${sd}`;
+    
+    // เซ็ตค่าลงในช่อง Input แบบเงียบๆ เพื่อให้ฟังก์ชัน summarize() ดึงไปใช้ต่อได้ทันที
+    document.getElementById('startDate').value = startStr;
+    document.getElementById('endDate').value = endDateStr;
+    
+    // แปลงเป็นวันที่แบบไทยเพื่อแสดงผล Preview ให้สวยงาม
+    const thaiStart = startObj.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+    const thaiEnd = endObj.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+    
+    // แสดงพรีวิว
+    document.getElementById('generalLastXPreview').innerHTML = `ช่วงวันที่: ${thaiStart} ถึง ${thaiEnd}`;
+    
+    showToast('✅ คำนวณช่วงวันที่เรียบร้อย', 'success');
+}
+
+// ==============================================
 // ฟังก์ชันเริ่มต้น (onload)
 // ==============================================
 
@@ -4510,6 +4563,11 @@ window.onload = function () {
     // ตั้งค่าเริ่มต้นสำหรับโหมดสรุปแต่ละวัน
     if (typeof toggleDailyMode === 'function') {
         toggleDailyMode();
+    }
+    
+    // ตั้งค่าเริ่มต้นสำหรับโหมดสรุปทั่วไป
+    if (typeof toggleGeneralSummaryMode === 'function') {
+        toggleGeneralSummaryMode();
     }
     
     setTimeout(() => {
@@ -4577,41 +4635,55 @@ deleteRecordsByDate = async function() {
 // ฟังก์ชันสรุปเพิ่มเติม (ต้องมีเพื่อให้ปุ่มทำงาน)
 // ==============================================
 
-// [🔧 แก้ไข] ฟังก์ชัน summarizeToday
+// [🔧 แก้ไข] ฟังก์ชัน summarizeToday ให้ดึงวันล่าสุดที่มีข้อมูล
 function summarizeToday() {
     if (!currentAccount) {
         showToast("❌ กรุณาเลือกบัญชีก่อน", 'error');
         return;
     }
-    
-    const today = new Date();
-    const startDate = new Date(today.setHours(0, 0, 0, 0));
-    const endDate = new Date(today.setHours(23, 59, 59, 999));
-    
+
+    // ✅ ดึงวันล่าสุดที่มีข้อมูลจริงๆ
+    if (!dailySummaryData || Object.keys(dailySummaryData).length === 0) {
+        calculateDailySummaries();
+        if (Object.keys(dailySummaryData).length === 0) {
+            showToast('⚠️ ไม่มีข้อมูลในบัญชีนี้', 'error');
+            return;
+        }
+    }
+
+    // หาวันที่มากที่สุด (ล่าสุด)
+    const dates = Object.keys(dailySummaryData).sort();
+    const latestDateStr = dates[dates.length - 1]; 
+
+    const startDate = new Date(latestDateStr);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(latestDateStr);
+    endDate.setHours(23, 59, 59, 999);
+
     const summaryResult = generateSummaryData(startDate, endDate);
     if (!summaryResult) return;
-    
-    const thaiDateString = today.toLocaleDateString('th-TH', { 
+
+    const thaiDateString = startDate.toLocaleDateString('th-TH', { 
         year: 'numeric', 
         month: 'long', 
         day: 'numeric' 
     });
-    
+
     // ✅ เพิ่มกล่องรับข้อความหมายเหตุ
     const remarkInput = prompt("กรุณากรอกหมายเหตุ (ถ้าไม่กรอกจะใช้ 'No comment'):", "No comment") || "No comment";
 
     summaryContext = {
         summaryResult: summaryResult,
-        title: 'สรุปข้อมูลวันนี้',
+        title: 'สรุปข้อมูลวันล่าสุดที่มี', // เปลี่ยนชื่อหัวข้อให้เข้ากับข้อมูลจริง
         dateString: thaiDateString,
-        remark: remarkInput, // ✅ นำข้อความมาแสดง
+        remark: remarkInput,
         type: 'today',
         thaiDateString: thaiDateString,
-        headerLine1: 'สรุปวันนี้ :',
+        headerLine1: 'สรุปวันล่าสุด :',
         headerLine2: 'เงินในบัญชีวันนี้มี =',
-        headerLine3: 'รายการวันนี้'
+        headerLine3: 'รายการวันล่าสุด'
     };
-    
+
     openSummaryOutputModal();
 }
 
@@ -4691,17 +4763,71 @@ function summarizeByDayMonth() {
     openSummaryOutputModal();
 }
 
-// [🔧 แก้ไข] ฟังก์ชัน summarize
+// [🔧 แก้ไข] ฟังก์ชัน summarize (รองรับโหมดย้อนหลัง X วัน)
 function summarize() {
     if (!currentAccount) {
         showToast("❌ กรุณาเลือกบัญชีก่อน", 'error');
         return;
     }
     
-    const startDateStr = document.getElementById('startDate').value;
-    const endDateStr = document.getElementById('endDate').value;
-    const showDetails = document.getElementById('showDetailsRange').checked;
-    
+    // --- 🟢 ส่วนที่ 1: ดึงค่าวันที่โดยเช็คจากโหมดที่เลือก ---
+    let startDateStr = '';
+    let endDateStr = '';
+    const showDetailsElement = document.getElementById('showDetailsRange');
+    const showDetails = showDetailsElement ? showDetailsElement.checked : false;
+
+    // เช็คว่ามี Radio Button ให้เลือกโหมดหรือไม่ (กันเหนียวเผื่อ HTML โหลดไม่ทัน)
+    const modeRadios = document.querySelectorAll('input[name="summaryMode"]');
+    let selectedMode = 'range';
+    if (modeRadios.length > 0) {
+        const checkedRadio = document.querySelector('input[name="summaryMode"]:checked');
+        if (checkedRadio) selectedMode = checkedRadio.value;
+    }
+
+    if (selectedMode === 'lastX') {
+        // โหมด X วันล่าสุด
+        const daysInput = document.getElementById('summaryLastXDays');
+        const days = parseInt(daysInput ? daysInput.value : 0);
+        
+        if (!days || days <= 0) {
+            showToast('⚠️ กรุณาระบุจำนวนวันที่ต้องการย้อนหลังให้ถูกต้อง', 'error');
+            return;
+        }
+
+        // ✅ อัปเดต: ให้ใช้วันล่าสุดที่มีข้อมูล (เหมือนกับฝั่งสรุปรายวัน)
+        if (!dailySummaryData || Object.keys(dailySummaryData).length === 0) {
+            calculateDailySummaries();
+            if (Object.keys(dailySummaryData).length === 0) {
+                showToast('⚠️ ไม่มีข้อมูลในบัญชีนี้สำหรับคำนวณ', 'error');
+                return;
+            }
+        }
+
+        // ดึงวันล่าสุดที่มีข้อมูลจาก dailySummaryData
+        const dates = Object.keys(dailySummaryData).sort();
+        endDateStr = dates[dates.length - 1]; // วันที่มากที่สุด (ล่าสุด)
+
+        // ✅ แยกปี เดือน วัน เพื่อสร้าง Date Object ให้ตรงกับ Timezone ท้องถิ่นแบบ 100%
+        const [ey, em, ed] = endDateStr.split('-').map(Number);
+        const startObj = new Date(ey, em - 1, ed);
+        startObj.setDate(startObj.getDate() - days + 1); // ลบจำนวนวัน (+1 เพื่อให้นับวันล่าสุดเป็น 1 วัน)
+
+        const sy = startObj.getFullYear();
+        const sm = String(startObj.getMonth() + 1).padStart(2, '0');
+        const sd = String(startObj.getDate()).padStart(2, '0');
+        startDateStr = `${sy}-${sm}-${sd}`;
+
+        // (Option) อัปเดตค่ากลับไปที่ช่อง input date เพื่อให้ผู้ใช้เห็นว่าระบบใช้วันที่ไหนคำนวณ
+        if (document.getElementById('startDate')) document.getElementById('startDate').value = startDateStr;
+        if (document.getElementById('endDate')) document.getElementById('endDate').value = endDateStr;
+
+    } else {
+        // โหมดปกติ (ดึงจากช่อง Input Date ตรงๆ)
+        startDateStr = document.getElementById('startDate').value;
+        endDateStr = document.getElementById('endDate').value;
+    }
+    // --- 🟢 สิ้นสุดส่วนที่ 1 ---
+
     if (!startDateStr || !endDateStr) {
         showToast("❌ กรุณาเลือกวันที่เริ่มต้นและวันที่สิ้นสุด", 'error');
         return;
@@ -4720,7 +4846,7 @@ function summarize() {
     const summaryResult = generateSummaryData(startDate, endDate);
     if (!summaryResult) return;
     
-const startThai = startDate.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+    const startThai = startDate.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
     const endThai = endDate.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
     const thaiDateString = `${startThai} ถึง ${endThai}`;
     
